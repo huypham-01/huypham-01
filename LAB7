@@ -1,0 +1,111 @@
+----CAU1--
+---Nhập vào MaNV cho biết tuổi của nhân viên này.---
+create function Tuoi_NV
+	(@MaNV nvarchar(9))
+returns int
+as
+begin
+	return ( select DATEDIFF ( year,NGSINH , GETDATE()) + 1 from NHANVIEN WHERE MANV =  @MaNV);
+end;
+
+select [dbo].[Tuoi_NV] ('004')
+
+----Nhập vào Manv cho biết số lượng đề án nhân viên này đã tham gia---
+create function NV_TGDA
+	(@MaNV nvarchar(9))
+returns int
+as
+begin
+	return ( select count(maDA) from PHANCONG where MA_NVIEN = @MaNV);
+end;
+
+select [dbo].[NV_TGDA] ('004')
+
+---Truyền tham số vào phái nam hoặc nữ, xuất số lượng nhân viên theo phái---
+create function TruyenTS
+	(@phai nvarchar(3))
+returns int
+as
+begin
+	return ( select count(manv) from NHANVIEN where PHAI = @phai);
+end;
+
+select [dbo].[TruyenTS] (N'Nam')
+
+---Truyền tham số đầu vào là tên phòng, tính mức lương trung bình của phòng đó---
+if OBJECT_ID('fn_Luong_NhanVien_PB')is not null drop function fn_Luong_NhanVien_PB 
+go
+create function fn_Luong_NhanVien_PB(@TenPhongBan nvarchar(20))
+returns @tbLuongNV table(fullname nvarchar (50), luong float)
+as 
+	begin
+		declare @LuongTB float
+		select @LuongTB = AVG(LUONG) from NHANVIEN
+		inner join PHONGBAN on PHONGBAN.MAPHG = NHANVIEN.PHG
+		where TENPHG = @TenPhongBan
+		--print 'Luong Trung Binh: '+ convert(nvarchar.@LuongTB)
+		--insert vao table
+		insert into @tbLuongNV
+			select HONV+' '+TENLOT+' '+TENNV, LUONG from NHANVIEN
+			where LUONG > @LuongTB
+		return
+	end;
+
+select * from dbo.fn_Luong_NhanVien_PB('IT')
+
+---Tryền tham số đầu vào là Mã Phòng, cho biết tên phòng ban, họ tên người trưởng phòng và số lượng đề án mà phòng ban đó chủ trì.--
+create function TruyenTS_MP
+	(@MaPhg int)
+returns @List table (TenPhong nvarchar (15), TenTruongPhong nvarchar(30), SoLuongDeAn int)
+as
+begin
+	insert into @List
+		select a.TENPHG, b.HONV + ' ' + b.TENLOT + ' ' + b.TENNV,
+		(select count (c.MADA) FROM DEAN c where c.PHONG = a.MAPHG)
+		FROM PHONGBAN a inner join NHANVIEN b on a.MAPHG = b.PHG;
+	RETURN;
+end;
+
+select*from [dbo].[TruyenTS_MP] (1)
+
+---CAU2---
+---Hiển thị thông tin HoNV,TenNV,TenPHG, DiaDiemPhg--
+select HONV,TENPHG,DIADIEM from PHONGBAN
+inner join DIADIEM_PHG on DIADIEM_PHG.MAPHG = PHONGBAN.MAPHG
+inner join NHANVIEN on NHANVIEN.PHG = PHONGBAN.MAPHG
+
+create view HienThi_TT1
+as
+select HONV,TENPHG,DIADIEM from PHONGBAN
+inner join DIADIEM_PHG on DIADIEM_PHG.MAPHG = PHONGBAN.MAPHG
+inner join NHANVIEN on NHANVIEN.PHG = PHONGBAN.MAPHG
+
+select * from HienThi_TT1
+
+---Hiển thị thông tin TenNv, Lương, Tuổi---
+select TENNV,LUONG,YEAR(GETDATE())-YEAR(NGSINH)as 'Tuoi' from NHANVIEN
+
+create view HienThi_TT2
+as
+select TENNV,LUONG,YEAR(GETDATE())-YEAR(NGSINH)as 'Tuoi' from NHANVIEN
+
+select * from HienThi_TT2
+
+--Hiển thị tên phòng ban và họ tên trưởng phòng của phòng ban có đông nhân viên nhất--
+select top(1) TENPHG,TRPHG,B.HONV+' '+B.TENLOT+' '+B.TENNV as 'TenTP',COUNT(A.MANV)as 'SoLuongNV' from NHANVIEN A
+inner join PHONGBAN on PHONGBAN.MAPHG = A.PHG
+inner join NHANVIEN B on B.MANV = PHONGBAN.TRPHG
+group by TENPHG,TRPHG,B.TENNV,B.HONV,B.TENLOT
+order by SoLuongNV desc
+
+create view HienThi_TT3
+as
+select top(1) TENPHG,TRPHG,B.HONV+' '+B.TENLOT+' '+B.TENNV as 'TenTP',COUNT(A.MANV)as 'SoLuongNV' 
+from NHANVIEN A
+inner join PHONGBAN on PHONGBAN.MAPHG = A.PHG
+inner join NHANVIEN B on B.MANV = PHONGBAN.TRPHG
+group by TENPHG,TRPHG,B.TENNV,B.HONV,B.TENLOT
+order by SoLuongNV desc
+
+select * from HienThi_TT3
+
